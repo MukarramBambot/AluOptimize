@@ -1,123 +1,100 @@
-# AluOptimize
+# 🧠 AluOptimize - Internship Project
 
-A full-stack web application for optimizing aluminum production using machine learning.
+## 👨‍💻 Developer Information
 
-## Project Structure
+**Developed by:** Mukarram Bambot  
+**Role:** Python Full Stack Developer Intern  
+**Company:** VCodez - Innovating Ideas  
+**Institution:** Patrician College of Arts and Science
+
+---
+
+## 📞 Contact Information
+
+📧 **Email:** mukbambot118@gmail.com  
+📱 **WhatsApp:** +91 8925769787  
+🔗 **LinkedIn:** [www.linkedin.com/in/mukarrambambot](https://www.linkedin.com/in/mukarrambambot)
+
+---
+
+## 📖 Description
+
+**AluOptimize** is a full-stack web application developed as part of a Python Full Stack Development internship at **VCodez - Innovating Ideas**. The project focuses on optimizing aluminum production using predictive analysis, waste management, and AI-driven recommendations.
+
+---
+
+## 🚀 Key Features
+
+- **Predictive Analysis:** Machine learning models to predict aluminum production output
+- **Waste Management:** Track and manage production waste with reusability analysis
+- **AI Recommendations:** Intelligent suggestions for process optimization
+- **Admin Dashboard:** Comprehensive control panel for system management
+- **PDF Reports:** Detailed input-specific reports with email delivery
+- **User Authentication:** Secure login system with role-based access control
+
+---
+
+## 🛠️ Technology Stack
+
+### Backend
+- **Python 3.x**
+- **Django** - Web framework
+- **Django REST Framework** - API development
+- **MySQL** - Database
+- **ReportLab** - PDF generation
+
+### Frontend
+- **React.js** - UI framework
+- **Material-UI** - Component library
+- **Axios** - HTTP client
+
+---
+
+## 📂 Project Structure
 
 ```
-├── backend/          # Django + DRF backend
-├── frontend/         # React + Webpack frontend
-├── manage.py         # Django management script
-└── README.md        # This file
+AluOptimize/
+├── backend/
+│   ├── apps/
+│   │   ├── authapp/          # Authentication
+│   │   ├── core/             # Core functionality
+│   │   ├── prediction/       # Prediction models
+│   │   └── waste/            # Waste management
+│   └── config/               # Django settings
+├── frontend/
+│   ├── src/
+│   │   ├── components/       # React components
+│   │   ├── pages/            # Page components
+│   │   └── services/         # API services
+│   └── public/               # Static files
+└── README.md
 ```
 
-## Backend Setup
+---
 
-1. Create and activate a virtual environment:
-```bash
-python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-```
+## 🎯 Project Highlights
 
-2. Install backend dependencies:
-```bash
-pip install -r backend/requirements.txt
-```
+This internship project demonstrates:
+- Full-stack development skills (Python/Django + React)
+- RESTful API design and implementation
+- Database modeling and optimization
+- User authentication and authorization
+- PDF generation and email integration
+- Modern UI/UX design with Material-UI
+- Version control with Git
 
-3. Create `.env` file from example:
-```bash
-cp backend/env.example .env
-# Edit .env with your database credentials and secret key
-```
+---
 
-4. Set up the MySQL database:
-```bash
-mysql -u root -p
-```
+## 📄 License
 
-```sql
-CREATE DATABASE AluOptimize CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'alu_user'@'localhost' IDENTIFIED BY 'your-password';
-GRANT ALL PRIVILEGES ON AluOptimize.* TO 'alu_user'@'localhost';
-FLUSH PRIVILEGES;
-```
+This project was developed as part of an internship program at VCodez - Innovating Ideas.
 
-5. Run migrations:
-```bash
-python manage.py migrate
-```
+---
 
-6. Create a superuser:
-```bash
-python manage.py createsuperuser
-```
+## 🙏 Acknowledgments
 
-7. Run the development server:
-```bash
-python manage.py runserver
-```
+Special thanks to **VCodez - Innovating Ideas** for providing the opportunity to work on this project and **Patrician College of Arts and Science** for academic support.
 
-The backend will be available at http://localhost:8000
+---
 
-## Frontend Setup
-
-1. Install frontend dependencies:
-```bash
-cd frontend
-npm install
-```
-
-2. Create `.env` file from example:
-```bash
-cp .env.example .env
-```
-
-3. Start the development server:
-```bash
-npm start
-```
-
-The frontend will be available at http://localhost:3000
-
-## API Documentation
-
-### Authentication Endpoints
-
-- POST `/api/auth/register/` - Register a new user
-- POST `/api/token/` - Obtain JWT token pair
-- POST `/api/token/refresh/` - Refresh JWT token
-- GET `/api/auth/me/` - Get current user info
-
-### Running Tests
-
-Backend tests:
-```bash
-python manage.py test
-```
-
-Frontend tests:
-```bash
-cd frontend
-npm test
-```
-
-## Environment Variables
-
-### Backend (.env)
-
-- `SECRET_KEY` - Django secret key
-- `DEBUG` - Debug mode (True/False)
-- `DATABASE_NAME` - MySQL database name
-- `DATABASE_USER` - Database user
-- `DATABASE_PASSWORD` - Database password
-- `DATABASE_HOST` - Database host
-- `DATABASE_PORT` - Database port
-- `DJANGO_ALLOWED_HOSTS` - Allowed hosts list
-- `JWT_ACCESS_TOKEN_LIFETIME` - JWT access token lifetime in minutes
-- `JWT_REFRESH_TOKEN_LIFETIME` - JWT refresh token lifetime in minutes
-
-### Frontend (.env)
-
-- `REACT_APP_API_URL` - Backend API URL
-- `REACT_APP_JWT_COOKIE_NAME` - JWT cookie name
-- `REACT_APP_JWT_REFRESH_COOKIE_NAME` - JWT refresh token cookie name
+**© 2025 Mukarram Bambot | VCodez - Innovating Ideas**

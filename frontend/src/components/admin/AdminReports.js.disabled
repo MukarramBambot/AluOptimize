@@ -1,3 +1,17 @@
+/**
+ * DISABLED FILE - Bulk Reports Feature Removed
+ * 
+ * This component has been disabled and replaced with AdminInputReports.js
+ * which provides input-specific detailed PDF reports instead of bulk reports.
+ * 
+ * Reason: Simplified reporting workflow - admins now select a user, then an input,
+ * and generate detailed reports for that specific input. This provides more
+ * granular control and better report quality.
+ * 
+ * Replacement: frontend/src/components/admin/AdminInputReports.js
+ * Date Disabled: November 6, 2025
+ */
+
 import React from 'react';
 import {
   Box,

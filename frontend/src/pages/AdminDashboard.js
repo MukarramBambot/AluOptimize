@@ -16,7 +16,6 @@ import PeopleIcon from '@mui/icons-material/People';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import SettingsIcon from '@mui/icons-material/Settings';
 import RecyclingIcon from '@mui/icons-material/Recycling';
-import DescriptionIcon from '@mui/icons-material/Description';
 import FindInPageIcon from '@mui/icons-material/FindInPage';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { AuthContext } from '../context/AuthContext';
@@ -28,7 +27,6 @@ import AdminUsers from '../components/admin/AdminUsers';
 import AdminPredictions from '../components/admin/AdminPredictions';
 import AdminPredictionControl from '../components/admin/AdminPredictionControl';
 import AdminWasteRecommendations from '../components/admin/AdminWasteRecommendations';
-import AdminReports from '../components/admin/AdminReports';
 import AdminInputReports from '../components/admin/AdminInputReports';
 
 function TabPanel({ children, value, index }) {
@@ -133,8 +131,7 @@ export default function AdminDashboard() {
             <Tab icon={<AssessmentIcon />} label="Predictions" />
             <Tab icon={<SettingsIcon />} label="Prediction Control" />
             <Tab icon={<RecyclingIcon />} label="Waste & Recommendations" />
-            <Tab icon={<FindInPageIcon />} label="Input Reports" />
-            <Tab icon={<DescriptionIcon />} label="Bulk Reports" />
+            <Tab icon={<FindInPageIcon />} label="Reports" />
           </Tabs>
         </Box>
 
@@ -160,10 +157,6 @@ export default function AdminDashboard() {
 
         <TabPanel value={tabValue} index={5}>
           <AdminInputReports />
-        </TabPanel>
-
-        <TabPanel value={tabValue} index={6}>
-          <AdminReports />
         </TabPanel>
       </Container>
     </Box>
