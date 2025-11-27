@@ -365,6 +365,7 @@ AluOptimize/
 
 ### 📸 Home Page Screenshot
 AluOptimize – AI-Powered Industrial Optimization Home Screen
+
 [![Home Page Screenshot](https://github.com/MukarramBambot/AluOptimize/blob/main/assets/screenshots/Home_Page.png?raw=true)](https://github.com/MukarramBambot/AluOptimize/blob/main/assets/screenshots/Home_Page.png)
 
 ### 📸 Dashboard Screenshot
