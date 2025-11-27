@@ -11,11 +11,11 @@ import {
 import Button from '../components/ui/Button';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import { useNavigate } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
-  const { adminLogin, user } = React.useContext(AuthContext);
+  const { login, user } = useAuth();
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   const [formData, setFormData] = React.useState({
@@ -24,12 +24,13 @@ export default function AdminLogin() {
   });
 
   React.useEffect(() => {
-    // If already logged in as staff, redirect to admin dashboard
-    if (user && (user.is_staff || user.is_superuser)) {
+    // Only redirect if already logged in as admin
+    if (user && user.is_superuser) {
       navigate('/admin-dashboard');
+    } else if (user && user.is_staff) {
+      navigate('/staff-dashboard');
     } else if (user) {
-      // Logged in but not staff
-      setError('You do not have admin privileges. Please contact an administrator.');
+      navigate('/dashboard');
     }
   }, [user, navigate]);
 
@@ -46,60 +47,39 @@ export default function AdminLogin() {
     setError('');
 
     try {
-      // Pass credentials as object
-      const credentials = {
-        username: formData.username.trim(),
-        password: formData.password
-      };
+      const result = await login(formData.username.trim(), formData.password);
+
+      if (!result.success) {
+        setError(result.error || 'Invalid username or password');
+        return;
+      }
+
+      const loggedInUser = result.user;
+      const role = loggedInUser.role;
       
-      await adminLogin(credentials);
-      
-      // After login, user context will be updated
-      // Check will happen in useEffect
-      console.log('Admin login successful');
-      
+      // Redirect based on user role
+      if (loggedInUser.is_superuser || role === 'admin') {
+        navigate('/admin-dashboard');
+      } else if (loggedInUser.is_staff || role === 'staff') {
+        navigate('/staff-dashboard');
+      } else {
+        navigate('/dashboard');
+      }
+
     } catch (err) {
       console.error('Admin login error:', err);
       
-      // Handle network errors
-      if (!err.response) {
-        setError('Cannot connect to server. Please ensure the backend is running.');
-        setLoading(false);
-        return;
-      }
-      
-      const detail = err.response?.data?.detail;
-      const status = err.response?.status;
-      
-      // Check for non-admin account trying to use admin login
-      if (detail && detail.toLowerCase().includes('only admin accounts')) {
-        setError('Only admin accounts can use this login page. Please use the regular login page.');
-        // Redirect to user login after 2 seconds
-        setTimeout(() => {
-          navigate('/login');
-        }, 2000);
-      }
-      // Handle specific error cases
-      else if (status === 400) {
-        setError('Invalid username or password.');
-      } else if (status === 401) {
-        setError('Invalid username or password.');
-      } else if (status === 403) {
-        if (detail && detail.toLowerCase().includes('admin')) {
-          setError('Only admin accounts can use this login page. Please use the regular login page.');
-          setTimeout(() => {
-            navigate('/login');
-          }, 2000);
-        } else {
-          setError(detail || 'Access forbidden.');
-        }
-      } else if (detail && (detail.toLowerCase().includes('not approved') || detail.toLowerCase().includes('account_inactive'))) {
-        setError('Account not approved by admin yet.');
-      } else if (detail && (detail.toLowerCase().includes('credentials') || detail.toLowerCase().includes('unable to log in'))) {
-        setError('Invalid username or password.');
+      // Handle the new error format from authService
+      if (err.error) {
+        setError(err.error);
+      } else if (err.response?.data?.detail) {
+        setError(err.response.data.detail);
+      } else if (err.message === 'Network Error') {
+        setError('Cannot connect to server. Please check your connection and ensure the backend is running.');
       } else {
-        setError(detail || err.message || 'Login failed. Please try again.');
+        setError('Invalid username or password. Please try again.');
       }
+    } finally {
       setLoading(false);
     }
   };

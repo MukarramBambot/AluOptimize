@@ -1,6 +1,7 @@
 import logging
 from typing import Dict, Any
 import sys
+import os
 import socket
 
 logger = logging.getLogger(__name__)
@@ -26,11 +27,7 @@ def get_database_config() -> Dict[str, Any]:
     if not is_mysql_running():
         error_msg = (
             "MySQL server is not running on localhost:3306.\n"
-            "Please ensure your MySQL server (e.g., XAMPP) is running before continuing.\n"
-            "Common solutions:\n"
-            "1. Start XAMPP Control Panel and click 'Start' for MySQL\n"
-            "2. Or start MySQL service: sudo service mysql start\n"
-            "3. Check MySQL status: sudo service mysql status"
+            "Please ensure your MySQL server is running before continuing."
         )
         logger.error(error_msg)
         raise ConnectionError(error_msg)
@@ -40,7 +37,7 @@ def get_database_config() -> Dict[str, Any]:
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'AluOptimize',
         'USER': 'root',
-        'PASSWORD': '',
+        'PASSWORD': 'root123',
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {

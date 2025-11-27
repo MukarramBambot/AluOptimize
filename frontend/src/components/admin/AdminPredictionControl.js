@@ -48,18 +48,28 @@ export default function AdminPredictionControl() {
       setError('');
       
       const params = statusFilter !== 'All' ? { status: statusFilter } : {};
-      const response = await api.get('/admin-panel/prediction-control/', { params });
+      const response = await api.get('/prediction/predictions/', { params });
       
-      setPredictions(response.data);
+      // Handle both paginated and non-paginated responses
+      const data = response.data.results || response.data;
+      setPredictions(Array.isArray(data) ? data : []);
       
-      // Fetch statistics
-      const statsResponse = await api.get('/admin-panel/prediction-control/statistics/');
-      setStatistics(statsResponse.data);
+      // Calculate basic statistics
+      const stats = {
+        total: Array.isArray(data) ? data.length : 0,
+        approved: Array.isArray(data) ? data.filter(p => p.status === 'approved').length : 0,
+        pending: Array.isArray(data) ? data.filter(p => p.input_data?.status === 'pending').length : 0,
+        avgEfficiency: Array.isArray(data) && data.length > 0 
+          ? data.reduce((sum, p) => sum + (p.energy_efficiency || 0), 0) / data.length 
+          : 0
+      };
+      setStatistics(stats);
       
       setLoading(false);
     } catch (err) {
       console.error('Error fetching predictions:', err);
       setError('Failed to load predictions. Please try again.');
+      setPredictions([]);
       setLoading(false);
     }
   };
@@ -73,9 +83,9 @@ export default function AdminPredictionControl() {
       setError('');
       setSuccess('');
       
-      const response = await api.post(`/admin-panel/prediction-control/${inputId}/run/`);
+      const response = await api.post(`/prediction/inputs/${inputId}/generate_prediction/`);
       
-      setSuccess(`Prediction generated successfully! Output: ${response.data.output.predicted_output.toFixed(2)} kg`);
+      setSuccess(`Prediction generated successfully! Output: ${response.data.prediction.predicted_output.toFixed(2)} kg`);
       fetchPredictions();
     } catch (err) {
       console.error('Error running prediction:', err);
@@ -88,13 +98,13 @@ export default function AdminPredictionControl() {
       setError('');
       setSuccess('');
       
-      await api.post(`/admin-panel/prediction-control/${inputId}/approve/`);
+      await api.post(`/prediction/inputs/${inputId}/send_to_user/`);
       
-      setSuccess('Prediction approved successfully!');
+      setSuccess('Prediction sent to user successfully!');
       fetchPredictions();
     } catch (err) {
-      console.error('Error approving prediction:', err);
-      setError(err.response?.data?.error || 'Failed to approve prediction');
+      console.error('Error sending prediction:', err);
+      setError(err.response?.data?.error || 'Failed to send prediction');
     }
   };
 
@@ -103,13 +113,13 @@ export default function AdminPredictionControl() {
       setError('');
       setSuccess('');
       
-      await api.post(`/admin-panel/prediction-control/${inputId}/reject/`);
+      await api.post(`/prediction/inputs/${inputId}/reject/`);
       
-      setSuccess('Prediction rejected successfully!');
+      setSuccess('Input rejected successfully!');
       fetchPredictions();
     } catch (err) {
-      console.error('Error rejecting prediction:', err);
-      setError(err.response?.data?.error || 'Failed to reject prediction');
+      console.error('Error rejecting input:', err);
+      setError(err.response?.data?.error || 'Failed to reject input');
     }
   };
 
@@ -163,9 +173,9 @@ export default function AdminPredictionControl() {
             <Card>
               <CardContent>
                 <Typography color="textSecondary" gutterBottom>
-                  Total Inputs
+                  Total Predictions
                 </Typography>
-                <Typography variant="h4">{statistics.total_inputs}</Typography>
+                <Typography variant="h4">{statistics.total}</Typography>
               </CardContent>
             </Card>
           </Grid>
@@ -176,7 +186,7 @@ export default function AdminPredictionControl() {
                   Pending
                 </Typography>
                 <Typography variant="h4" color="warning.main">
-                  {statistics.by_status.pending + statistics.inputs_without_predictions}
+                  {statistics.pending}
                 </Typography>
               </CardContent>
             </Card>
@@ -188,7 +198,7 @@ export default function AdminPredictionControl() {
                   Approved
                 </Typography>
                 <Typography variant="h4" color="success.main">
-                  {statistics.by_status.approved}
+                  {statistics.approved}
                 </Typography>
               </CardContent>
             </Card>
@@ -197,10 +207,10 @@ export default function AdminPredictionControl() {
             <Card>
               <CardContent>
                 <Typography color="textSecondary" gutterBottom>
-                  Rejected
+                  Avg Efficiency
                 </Typography>
-                <Typography variant="h4" color="error.main">
-                  {statistics.by_status.rejected}
+                <Typography variant="h4" color="info.main">
+                  {statistics.avgEfficiency.toFixed(1)}%
                 </Typography>
               </CardContent>
             </Card>
@@ -263,22 +273,21 @@ export default function AdminPredictionControl() {
               </TableRow>
             ) : (
               predictions.map((pred) => {
-                const input = pred.input;
-                const output = pred.output;
-                const status = output ? output.status : 'Pending';
+                const input = pred.input_data || {};
+                const status = pred.status || 'pending';
                 
                 return (
-                  <TableRow key={input.id}>
-                    <TableCell>{input.id}</TableCell>
+                  <TableRow key={pred.id}>
+                    <TableCell>{pred.id}</TableCell>
                     <TableCell>
-                      {input.submitted_by_username ? (
+                      {input.created_by_username ? (
                         <Box>
                           <Typography variant="body2" fontWeight="bold">
-                            {input.submitted_by_username}
+                            {input.created_by_username}
                           </Typography>
-                          {input.submitted_by_email && (
+                          {input.created_by_email && (
                             <Typography variant="caption" color="textSecondary">
-                              {input.submitted_by_email}
+                              {input.created_by_email}
                             </Typography>
                           )}
                         </Box>
@@ -286,7 +295,7 @@ export default function AdminPredictionControl() {
                         'N/A'
                       )}
                     </TableCell>
-                    <TableCell>{input.production_line}</TableCell>
+                    <TableCell>{input.production_line || 'N/A'}</TableCell>
                     <TableCell>{input.temperature}</TableCell>
                     <TableCell>{input.pressure}</TableCell>
                     <TableCell>{input.feed_rate} kg/h</TableCell>
@@ -313,8 +322,8 @@ export default function AdminPredictionControl() {
                           </IconButton>
                         </Tooltip>
                         
-                        {!pred.has_prediction && (
-                          <Tooltip title="Run Prediction">
+                        {input.status === 'pending' && (
+                          <Tooltip title="Generate Prediction">
                             <IconButton
                               size="small"
                               color="primary"
@@ -325,27 +334,28 @@ export default function AdminPredictionControl() {
                           </Tooltip>
                         )}
                         
-                        {output && !output.is_approved && status !== 'Rejected' && (
-                          <>
-                            <Tooltip title="Approve">
-                              <IconButton
-                                size="small"
-                                color="success"
-                                onClick={() => handleApprovePrediction(input.id)}
-                              >
-                                <CheckCircleIcon />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Reject">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={() => handleRejectPrediction(input.id)}
-                              >
-                                <CancelIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </>
+                        {input.status === 'approved' && !input.sent_to_user && (
+                          <Tooltip title="Send to User">
+                            <IconButton
+                              size="small"
+                              color="success"
+                              onClick={() => handleApprovePrediction(input.id)}
+                            >
+                              <CheckCircleIcon />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        
+                        {input.status === 'pending' && (
+                          <Tooltip title="Reject">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleRejectPrediction(input.id)}
+                            >
+                              <CancelIcon />
+                            </IconButton>
+                          </Tooltip>
                         )}
                       </Box>
                     </TableCell>
@@ -367,66 +377,66 @@ export default function AdminPredictionControl() {
               <Grid container spacing={2} mb={3}>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="textSecondary">Production Line</Typography>
-                  <Typography variant="body1">{selectedPrediction.input.production_line}</Typography>
+                  <Typography variant="body1">{selectedPrediction.input_data?.production_line || 'N/A'}</Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="textSecondary">Temperature</Typography>
-                  <Typography variant="body1">{selectedPrediction.input.temperature}°C</Typography>
+                  <Typography variant="body1">{selectedPrediction.input_data?.temperature}°C</Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="textSecondary">Pressure</Typography>
-                  <Typography variant="body1">{selectedPrediction.input.pressure} Pa</Typography>
+                  <Typography variant="body1">{selectedPrediction.input_data?.pressure} Pa</Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="textSecondary">Feed Rate</Typography>
-                  <Typography variant="body1">{selectedPrediction.input.feed_rate} kg/h</Typography>
+                  <Typography variant="body1">{selectedPrediction.input_data?.feed_rate} kg/h</Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="textSecondary">Power Consumption</Typography>
-                  <Typography variant="body1">{selectedPrediction.input.power_consumption} kWh</Typography>
+                  <Typography variant="body1">{selectedPrediction.input_data?.power_consumption} kWh</Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="textSecondary">Anode Effect</Typography>
-                  <Typography variant="body1">{selectedPrediction.input.anode_effect}</Typography>
+                  <Typography variant="body1">{selectedPrediction.input_data?.anode_effect}</Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="textSecondary">Bath Ratio</Typography>
-                  <Typography variant="body1">{selectedPrediction.input.bath_ratio}</Typography>
+                  <Typography variant="body1">{selectedPrediction.input_data?.bath_ratio}</Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="textSecondary">Alumina Concentration</Typography>
-                  <Typography variant="body1">{selectedPrediction.input.alumina_concentration}%</Typography>
+                  <Typography variant="body1">{selectedPrediction.input_data?.alumina_concentration}%</Typography>
                 </Grid>
               </Grid>
 
-              {selectedPrediction.output && (
+              {selectedPrediction.predicted_output && (
                 <>
                   <Typography variant="h6" gutterBottom>Prediction Results</Typography>
                   <Grid container spacing={2}>
                     <Grid item xs={6}>
                       <Typography variant="body2" color="textSecondary">Predicted Output</Typography>
-                      <Typography variant="body1">{selectedPrediction.output.predicted_output.toFixed(2)} kg</Typography>
+                      <Typography variant="body1">{selectedPrediction.predicted_output.toFixed(2)} kg</Typography>
                     </Grid>
                     <Grid item xs={6}>
                       <Typography variant="body2" color="textSecondary">Energy Efficiency</Typography>
-                      <Typography variant="body1">{selectedPrediction.output.energy_efficiency.toFixed(2)}%</Typography>
+                      <Typography variant="body1">{selectedPrediction.energy_efficiency?.toFixed(2)}%</Typography>
                     </Grid>
                     <Grid item xs={6}>
                       <Typography variant="body2" color="textSecondary">Output Quality</Typography>
-                      <Typography variant="body1">{selectedPrediction.output.output_quality.toFixed(2)}/100</Typography>
+                      <Typography variant="body1">{selectedPrediction.output_quality?.toFixed(2)}/100</Typography>
                     </Grid>
                     <Grid item xs={6}>
                       <Typography variant="body2" color="textSecondary">Status</Typography>
                       <Chip
-                        label={selectedPrediction.output.status}
-                        color={getStatusColor(selectedPrediction.output.status)}
+                        label={selectedPrediction.status}
+                        color={getStatusColor(selectedPrediction.status)}
                         size="small"
                       />
                     </Grid>
-                    {selectedPrediction.output.processed_by_username && (
+                    {selectedPrediction.processed_by_username && (
                       <Grid item xs={12}>
                         <Typography variant="body2" color="textSecondary">Processed By</Typography>
-                        <Typography variant="body1">{selectedPrediction.output.processed_by_username}</Typography>
+                        <Typography variant="body1">{selectedPrediction.processed_by_username}</Typography>
                       </Grid>
                     )}
                   </Grid>

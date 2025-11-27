@@ -11,6 +11,12 @@ class ProductionInput(TimestampedModel):
         ('LINE_B', 'Production Line B'),
         ('LINE_C', 'Production Line C'),
     ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending Staff Review'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
 
     production_line = models.CharField(max_length=10, choices=PRODUCTION_LINE_CHOICES)
     temperature = models.FloatField(help_text="Temperature in Celsius")
@@ -20,10 +26,31 @@ class ProductionInput(TimestampedModel):
     anode_effect = models.FloatField(help_text="Anode effect frequency")
     bath_ratio = models.FloatField(help_text="Bath ratio")
     alumina_concentration = models.FloatField(help_text="Alumina concentration in %")
+    
+    # Workflow fields
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_inputs'
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_inputs'
+    )
+    sent_to_user = models.BooleanField(default=False)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    
+    # Legacy field for backward compatibility
     submitted_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.SET_NULL,
         null=True,
+        blank=True,
         related_name='production_inputs'
     )
 
@@ -34,6 +61,9 @@ class ProductionInput(TimestampedModel):
         indexes = [
             models.Index(fields=['-created_at']),
             models.Index(fields=['production_line']),
+            models.Index(fields=['status']),
+            models.Index(fields=['created_by']),
+            models.Index(fields=['sent_to_user']),
         ]
 
     def __str__(self):
@@ -81,6 +111,12 @@ class ProductionOutput(TimestampedModel):
         choices=STATUS_CHOICES,
         default='Pending',
         help_text="Current status of the prediction"
+    )
+
+    # Whether this prediction has been sent back to the end user
+    sent_to_user = models.BooleanField(
+        default=False,
+        help_text="Whether this prediction has been sent to the user"
     )
     
     # Auto-generated waste and recommendation fields

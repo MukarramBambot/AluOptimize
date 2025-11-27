@@ -36,14 +36,14 @@ export default function AdminWasteRecommendations() {
       
       // Fetch all waste recommendations (admin view)
       const resp = await api.get('/waste/recommendations/');
-      setRecommendations(resp.data.results || resp.data);
+      const data = Array.isArray(resp.data) ? resp.data : (resp.data.results || []);
+      setRecommendations(data);
       
       // Calculate statistics
-      const data = resp.data.results || resp.data;
       const stats = {
         total: data.length,
-        totalWaste: data.reduce((sum, rec) => sum + (rec.waste_record?.waste_amount || 0), 0),
-        totalSavings: data.reduce((sum, rec) => sum + parseFloat(rec.estimated_savings || 0), 0),
+        totalWaste: data.reduce((sum, rec) => sum + Number(rec.waste_record?.waste_amount || 0), 0),
+        totalSavings: data.reduce((sum, rec) => sum + Number(rec.estimated_savings || 0), 0),
         reusable: data.filter(rec => rec.waste_record?.reuse_possible).length
       };
       setStatistics(stats);

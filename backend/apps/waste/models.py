@@ -25,6 +25,8 @@ class WasteManagement(TimestampedModel):
 	unit = models.CharField(max_length=10, choices=WASTE_UNIT_CHOICES, default='KG')
 	date_recorded = models.DateField()
 	reuse_possible = models.BooleanField(default=False)
+	# Whether this waste record is visible to the end user
+	sent_to_user = models.BooleanField(default=False)
 	recorded_by = models.ForeignKey(
 		settings.AUTH_USER_MODEL,
 		on_delete=models.SET_NULL,
@@ -63,6 +65,8 @@ class WasteRecommendation(TimestampedModel):
 	recommendation_text = models.TextField()
 	estimated_savings = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
 	ai_generated = models.BooleanField(default=True, help_text="Whether this recommendation was AI-generated")
+	# Whether this recommendation has been sent back to the end user
+	sent_to_user = models.BooleanField(default=False)
 
 	class Meta:
 		ordering = ['-created_at']

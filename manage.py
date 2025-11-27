@@ -26,19 +26,8 @@ CORS_ORIGIN_WHITELIST = ['http://localhost:3000']
 JWT_ACCESS_TOKEN_LIFETIME = 5
 JWT_REFRESH_TOKEN_LIFETIME = 1440
 
-# Database configuration (MySQL)
-# Provided by user — central config in manage.py
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'AluOptimize',
-        'USER': 'root',
-        'PASSWORD': '',
-        # Use TCP loopback to avoid socket path issues (XAMPP/MAMP setups)
-        'HOST': '127.0.0.1',
-        'PORT': '3306',
-    }
-}
+# Database configuration is now centralized in backend/config/settings.py via db_driver.
+# The following block has been removed as it referenced XAMPP/MAMP setups.
 
 
 def main():

@@ -7,34 +7,42 @@ import Dashboard from '../pages/Dashboard';
 import ProductionInputForm from '../pages/ProductionInputForm';
 import Predictions from '../pages/Predictions';
 import WasteManagement from '../pages/WasteManagement';
-import Recommendations from '../pages/Recommendations';
 import AdminPanel from '../pages/AdminPanel';
 import AdminLogin from '../pages/AdminLogin';
 import AdminDashboard from '../pages/AdminDashboard';
-import { AuthContext, PERMISSIONS } from '../context/AuthContext';
+import StaffDashboard from '../pages/StaffDashboard';
+import StaffLogin from '../pages/StaffLogin';
+import ProtectedRoute from '../components/ProtectedRoute';
+import { useAuth } from '../context/AuthContext';
+import AdminOverview from '../components/admin/AdminOverview';
+import AdminUsers from '../components/admin/AdminUsers';
+import AdminPredictions from '../components/admin/AdminPredictions';
+import AdminPredictionControl from '../components/admin/AdminPredictionControl';
+import AdminWasteRecommendations from '../components/admin/AdminWasteRecommendations';
+import AdminInputReports from '../components/admin/AdminInputReports';
+import StaffOverview from '../components/staff/StaffOverview';
+import StaffUsers from '../components/staff/StaffUsers';
+import StaffPredictions from '../components/staff/StaffPredictions';
+import StaffWasteRecommendations from '../components/staff/StaffWasteRecommendations';
+import StaffInputReports from '../components/staff/StaffInputReports';
+import StaffPanel from '../components/staff/StaffPanel';
 
-// Protected route component with optional permission check
-const ProtectedRoute = ({ children, requiredPermission = null }) => {
-  const { user, loading, hasPermission } = React.useContext(AuthContext);
-  
-  if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
-  if (!user) return <Navigate to="/login" replace />;
-  
-  // If a specific permission is required, check it (placeholder for future use)
-  if (requiredPermission && !hasPermission(requiredPermission)) {
-    // For now, we allow access even without permission
-    // In the future, you can redirect to an "Access Denied" page
-    console.warn(`Permission ${requiredPermission} not granted, but allowing access (placeholder mode)`);
-  }
-  
-  return children;
-};
-
-// Public route component - redirects logged-in users to dashboard
+// Public route component - redirects logged-in users to their role dashboard
 const PublicRoute = ({ children }) => {
-  const { user, loading } = React.useContext(AuthContext);
+  const { user, loading } = useAuth();
   if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
-  if (user) return <Navigate to="/dashboard" replace />;
+
+  if (user) {
+    const role = user.role;
+    if (user.is_superuser || role === 'admin') {
+      return <Navigate to="/admin-dashboard" replace />;
+    }
+    if (user.is_staff || role === 'staff') {
+      return <Navigate to="/staff-dashboard" replace />;
+    }
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return children;
 };
 
@@ -43,27 +51,27 @@ export default function AppRouter() {
     <Router>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route 
-          path="/login" 
+        <Route
+          path="/login"
           element={
             <PublicRoute>
               <Login />
             </PublicRoute>
-          } 
+          }
         />
-        <Route 
-          path="/register" 
+        <Route
+          path="/register"
           element={
             <PublicRoute>
               <Register />
             </PublicRoute>
-          } 
+          }
         />
 
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireUser>
               <Dashboard />
             </ProtectedRoute>
           }
@@ -87,35 +95,55 @@ export default function AppRouter() {
         <Route
           path="/waste"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireUser>
               <WasteManagement />
             </ProtectedRoute>
           }
         />
         <Route
-          path="/recommendations"
-          element={
-            <ProtectedRoute>
-              <Recommendations />
-            </ProtectedRoute>
-          }
+          path="/stafflogin"
+          element={<StaffLogin />}
         />
         <Route
-          path="/admin-login"
+          path="/adminlogin"
           element={<AdminLogin />}
         />
         <Route
+          path="/staff-dashboard"
+          element={
+            <ProtectedRoute requireStaff>
+              <StaffDashboard />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="overview" replace />} />
+          <Route path="overview" element={<StaffOverview />} />
+          <Route path="users" element={<StaffUsers />} />
+          <Route path="predictions" element={<StaffPredictions />} />
+          <Route path="reports" element={<StaffInputReports />} />
+          <Route path="staff-panel" element={<StaffPanel />} />
+          <Route path="waste" element={<StaffWasteRecommendations />} />
+        </Route>
+        <Route
           path="/admin-dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireAdmin>
               <AdminDashboard />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<Navigate to="overview" replace />} />
+          <Route path="overview" element={<AdminOverview />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="predictions" element={<AdminPredictions />} />
+          <Route path="control" element={<AdminPredictionControl />} />
+          <Route path="waste" element={<AdminWasteRecommendations />} />
+          <Route path="reports" element={<AdminInputReports />} />
+        </Route>
         <Route
           path="/admin-panel"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireAdmin>
               <AdminPanel />
             </ProtectedRoute>
           }

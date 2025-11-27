@@ -12,6 +12,15 @@ const processQueue = (error, token = null) => {
   failedQueue = []
 }
 
+const clearAuthStorage = () => {
+  localStorage.removeItem('accessToken')
+  localStorage.removeItem('refreshToken')
+  localStorage.removeItem('user')
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('auth:logout'))
+  }
+}
+
 api.interceptors.request.use(cfg => {
   const t = localStorage.getItem('accessToken')
   if (t) cfg.headers.Authorization = `Bearer ${t}`
@@ -40,12 +49,11 @@ api.interceptors.response.use(res => res, err => {
     isRefreshing = true
     const refreshToken = localStorage.getItem('refreshToken')
     if (!refreshToken) {
-      localStorage.removeItem('accessToken')
-      localStorage.removeItem('refreshToken')
+      clearAuthStorage()
       return Promise.reject(err)
     }
     return new Promise((resolve, reject) => {
-      axios.post(`${API_BASE_URL}/api/token/refresh/`, { refresh: refreshToken })
+      axios.post(`${API_BASE_URL}/api/auth/token/refresh/`, { refresh: refreshToken })
         .then(({ data }) => {
           const newToken = data.access
           if (newToken) localStorage.setItem('accessToken', newToken)
@@ -56,8 +64,7 @@ api.interceptors.response.use(res => res, err => {
         })
         .catch(e => {
           processQueue(e, null)
-          localStorage.removeItem('accessToken')
-          localStorage.removeItem('refreshToken')
+          clearAuthStorage()
           reject(e)
         })
         .finally(() => { isRefreshing = false })

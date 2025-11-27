@@ -20,20 +20,35 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  MenuItem
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Select
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import AddIcon from '@mui/icons-material/Add';
 import api from '../../services/api';
+import { AuthContext, useAuth } from '../../context/AuthContext';
 
 export default function AdminUsers() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
   const [success, setSuccess] = React.useState('');
   const [filterStatus, setFilterStatus] = React.useState('all');
-  const [selectedUsers, setSelectedUsers] = React.useState([]);
+
+  // Create User Modal State
+  const [openCreateModal, setOpenCreateModal] = React.useState(false);
+  const [createLoading, setCreateLoading] = React.useState(false);
+  const [createData, setCreateData] = React.useState({
+    username: '',
+    email: '',
+    password: '',
+    role: 'user'
+  });
 
   React.useEffect(() => {
     fetchUsers();
@@ -84,7 +99,7 @@ export default function AdminUsers() {
     try {
       setError('');
       const pendingUserIds = users.filter(u => !u.is_active).map(u => u.id);
-      
+
       if (pendingUserIds.length === 0) {
         setError('No pending users to approve');
         return;
@@ -100,6 +115,49 @@ export default function AdminUsers() {
     }
   };
 
+  const handleCreateOpen = () => {
+    setCreateData({
+      username: '',
+      email: '',
+      password: '',
+      role: 'user'
+    });
+    setOpenCreateModal(true);
+  };
+
+  const handleCreateClose = () => {
+    setOpenCreateModal(false);
+  };
+
+  const handleCreateChange = (e) => {
+    setCreateData({
+      ...createData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleCreateSubmit = async () => {
+    if (!createData.username || !createData.email || !createData.password) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      setCreateLoading(true);
+      setError('');
+      await api.post('/admin-panel/users/create/', createData);
+      setSuccess(`User ${createData.username} created successfully`);
+      setOpenCreateModal(false);
+      fetchUsers();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Error creating user:', err);
+      setError(err.response?.data?.error || 'Failed to create user');
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString('en-US', {
       year: 'numeric',
@@ -109,6 +167,8 @@ export default function AdminUsers() {
       minute: '2-digit'
     });
   };
+
+  const isSuperAdmin = currentUser?.is_superuser || currentUser?.role === 'admin';
 
   if (loading) {
     return (
@@ -134,6 +194,7 @@ export default function AdminUsers() {
             <MenuItem value="pending">Pending</MenuItem>
             <MenuItem value="active">Active</MenuItem>
           </TextField>
+
           <Button
             variant="contained"
             color="success"
@@ -142,6 +203,18 @@ export default function AdminUsers() {
           >
             Approve All Pending
           </Button>
+
+          {isSuperAdmin && (
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
+              onClick={handleCreateOpen}
+            >
+              Create User
+            </Button>
+          )}
+
           <IconButton onClick={fetchUsers} color="primary">
             <RefreshIcon />
           </IconButton>
@@ -167,7 +240,7 @@ export default function AdminUsers() {
               <TableCell><strong>Username</strong></TableCell>
               <TableCell><strong>Email</strong></TableCell>
               <TableCell><strong>Status</strong></TableCell>
-              <TableCell><strong>Staff</strong></TableCell>
+              <TableCell><strong>Role</strong></TableCell>
               <TableCell><strong>Joined</strong></TableCell>
               <TableCell align="center"><strong>Actions</strong></TableCell>
             </TableRow>
@@ -192,7 +265,11 @@ export default function AdminUsers() {
                     />
                   </TableCell>
                   <TableCell>
-                    {user.is_staff && <Chip label="Staff" color="primary" size="small" />}
+                    <Chip
+                      label={user.role ? user.role.toUpperCase() : (user.is_superuser ? 'ADMIN' : (user.is_staff ? 'STAFF' : 'USER'))}
+                      color={user.role === 'admin' || user.is_superuser ? 'error' : (user.role === 'staff' || user.is_staff ? 'primary' : 'default')}
+                      size="small"
+                    />
                   </TableCell>
                   <TableCell>{formatDate(user.date_joined)}</TableCell>
                   <TableCell align="center">
@@ -224,6 +301,65 @@ export default function AdminUsers() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* Create User Dialog */}
+      <Dialog open={openCreateModal} onClose={handleCreateClose} maxWidth="sm" fullWidth>
+        <DialogTitle>Create New User</DialogTitle>
+        <DialogContent>
+          <Box display="flex" flexDirection="column" gap={2} pt={1}>
+            <TextField
+              label="Username"
+              name="username"
+              value={createData.username}
+              onChange={handleCreateChange}
+              fullWidth
+              required
+            />
+            <TextField
+              label="Email"
+              name="email"
+              type="email"
+              value={createData.email}
+              onChange={handleCreateChange}
+              fullWidth
+              required
+            />
+            <TextField
+              label="Password"
+              name="password"
+              type="password"
+              value={createData.password}
+              onChange={handleCreateChange}
+              fullWidth
+              required
+            />
+            <FormControl fullWidth>
+              <InputLabel>Role</InputLabel>
+              <Select
+                name="role"
+                value={createData.role}
+                onChange={handleCreateChange}
+                label="Role"
+              >
+                <MenuItem value="user">User</MenuItem>
+                <MenuItem value="staff">Staff</MenuItem>
+                <MenuItem value="admin">Admin</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCreateClose} color="inherit">Cancel</Button>
+          <Button
+            onClick={handleCreateSubmit}
+            color="primary"
+            variant="contained"
+            disabled={createLoading}
+          >
+            {createLoading ? <CircularProgress size={24} /> : 'Create User'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

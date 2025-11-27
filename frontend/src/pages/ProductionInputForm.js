@@ -55,14 +55,13 @@ export default function ProductionInputForm() {
       const response = await api.post('/prediction/inputs/', values);
       console.log('Submission response:', response.data);
       
+      // With new workflow, we only get a success message, no prediction
       setSuccess(true);
-      setPrediction(response.data.prediction || null);
       
       // Reset form after 3 seconds
       setTimeout(() => {
         reset();
         setSuccess(false);
-        setPrediction(null);
       }, 5000);
       
     } catch (err) {
@@ -94,37 +93,9 @@ export default function ProductionInputForm() {
           <Typography variant="subtitle1" fontWeight="bold">
             Production input submitted successfully!
           </Typography>
-          {prediction && (
-            <Paper elevation={0} sx={{ mt: 2, p: 2, bgcolor: 'success.50' }}>
-              <Typography variant="subtitle2" gutterBottom>Prediction Results:</Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Typography variant="body2" color="textSecondary">Predicted Output:</Typography>
-                  <Typography variant="h6" color="success.dark">
-                    {prediction.predicted_output?.toFixed(2)} kg
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2" color="textSecondary">Energy Efficiency:</Typography>
-                  <Typography variant="h6" color="success.dark">
-                    {prediction.energy_efficiency?.toFixed(2)}%
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2" color="textSecondary">Quality Score:</Typography>
-                  <Typography variant="h6" color="success.dark">
-                    {prediction.output_quality?.toFixed(2)}
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2" color="textSecondary">Processing Time:</Typography>
-                  <Typography variant="h6" color="success.dark">
-                    {prediction.execution_time_ms} ms
-                  </Typography>
-                </Grid>
-              </Grid>
-            </Paper>
-          )}
+          <Typography variant="body2" sx={{ mt: 1 }}>
+            Your input has been received and is awaiting staff review. You will be notified once the prediction is ready.
+          </Typography>
         </Alert>
       )}
       

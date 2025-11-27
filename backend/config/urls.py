@@ -20,12 +20,10 @@ api_urlpatterns = [
     path('core/', include('backend.apps.core.urls')),
     path('prediction/', include('backend.apps.prediction.urls')),
     path('waste/', include('backend.apps.waste.urls')),
-    path('admin-panel/', include('backend.apps.core.admin_urls')),  # Admin API endpoints
+    path('recommendation/', include('backend.apps.waste.recommendation_urls')),
+    path('admin-panel/', include('backend.apps.core.admin_urls')),
+    path('staff/', include('backend.apps.core.staff_urls')),
     path('health/', HealthCheckView.as_view(), name='api-health'),
-    
-    # JWT endpoints
-    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
 
 # Main URL patterns

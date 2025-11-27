@@ -6,7 +6,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import FactoryIcon from '@mui/icons-material/Factory';
 import RecyclingIcon from '@mui/icons-material/Recycling';
 import SpeedIcon from '@mui/icons-material/Speed';
-import api from '../services/api';
+import predictionService from '../services/predictionService';
 
 const API_BASE_URL = "http://127.0.0.1:8000";
 
@@ -19,52 +19,39 @@ export default function Dashboard() {
     latestEfficiency: 0,
   });
   const [predictions, setPredictions] = React.useState([]);
-  const [waste, setWaste] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
 
   const fetchDashboardData = React.useCallback(async () => {
     try {
-      const [inputsRes, outputsRes, wasteRes] = await Promise.all([
-        api.get('/prediction/inputs/'),
-        api.get('/prediction/outputs/'),
-        api.get('/waste/management/'),
-      ]);
+      setLoading(true);
+      // Only fetch user predictions from the unified endpoint
+      const predictionsRes = await predictionService.getUserPredictions();
+      const predictions = predictionsRes.results || predictionsRes || [];
 
-      const inputs = inputsRes.data.results || inputsRes.data || [];
-      const outputs = outputsRes.data.results || outputsRes.data || [];
-      const wasteData = wasteRes.data.results || wasteRes.data || [];
+      // Only show predictions that are sent to user (should already be filtered by backend)
+      const filtered = predictions.filter(p => p && (p.sent_to_user === undefined || p.sent_to_user));
+      const sortedPredictions = filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-      // Sort outputs by created_at descending
-      const sortedOutputs = outputs.sort((a, b) => 
-        new Date(b.created_at) - new Date(a.created_at)
-      );
-
-      const avgEff = outputs.length > 0 
-        ? (outputs.reduce((sum, o) => sum + (o.energy_efficiency || 0), 0) / outputs.length)
+      const avgEff = sortedPredictions.length > 0 
+        ? (sortedPredictions.reduce((sum, o) => sum + (Number(o.efficiency) || Number(o.energy_efficiency) || 0), 0) / sortedPredictions.length)
         : 0;
-
-      const latestEff = sortedOutputs.length > 0 
-        ? sortedOutputs[0].energy_efficiency || 0
+      const latestEff = sortedPredictions.length > 0 
+        ? (Number(sortedPredictions[0].efficiency) || Number(sortedPredictions[0].energy_efficiency) || 0)
         : 0;
 
       setStats({
-        totalInputs: inputs.length,
-        totalOutputs: outputs.length,
-        totalWaste: wasteData.length,
-        avgEfficiency: avgEff.toFixed(1),
-        latestEfficiency: latestEff.toFixed(2),
+        totalInputs: sortedPredictions.length,
+        totalOutputs: sortedPredictions.length,
+        totalWaste: sortedPredictions.filter(p => p.waste_amount).length,
+        avgEfficiency: Number(avgEff).toFixed(1),
+        latestEfficiency: Number(latestEff).toFixed(1),
       });
 
-      setPredictions(sortedOutputs.slice(0, 10));
-      setWaste(wasteData.slice(0, 10));
-      
-      console.log('Dashboard data refreshed:', { 
-        outputs: outputs.length, 
-        avgEff: avgEff.toFixed(1),
-        latestEff: latestEff.toFixed(2)
-      });
+      setPredictions(sortedPredictions.slice(0, 5));
     } catch (err) {
       console.error('Dashboard data fetch error:', err);
+      setPredictions([]);
+      setStats({ totalInputs: 0, totalOutputs: 0, totalWaste: 0, avgEff: 0, latestEff: 0 });
     } finally {
       setLoading(false);
     }
@@ -90,10 +77,17 @@ export default function Dashboard() {
 
   const chartData = predictions.map((pred, idx) => ({
     name: `#${predictions.length - idx}`,
-    efficiency: pred.energy_efficiency || 0,
-    output: pred.predicted_output || 0,
-    quality: pred.output_quality || 0,
+    efficiency: Number(pred.efficiency) || Number(pred.energy_efficiency) || 0,
+    output: Number(pred.output_kg) || Number(pred.predicted_output) || 0,
+    quality: Number(pred.quality) || Number(pred.output_quality) || 0,
   }));
+
+  const wasteData = predictions
+    .filter(pred => pred.waste_type && (pred.waste_amount || pred.waste_management?.waste_amount))
+    .map(pred => ({
+      waste_type: pred.waste_type || pred.waste_management?.waste_type,
+      waste_amount: Number(pred.waste_amount || pred.waste_management?.waste_amount || 0),
+    }));
 
   return (
     <Layout>
@@ -143,7 +137,7 @@ export default function Dashboard() {
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
                   <Typography color="white" variant="body2" gutterBottom>Latest Efficiency</Typography>
-                  <Typography variant="h4" color="white" fontWeight="bold">{stats.latestEfficiency}%</Typography>
+                  <Typography variant="h4" color="white" fontWeight="bold">{stats.latestEfficiency || 0}%</Typography>
                 </Box>
                 <SpeedIcon sx={{ fontSize: 48, color: 'rgba(255,255,255,0.3)' }} />
               </Box>
@@ -157,7 +151,7 @@ export default function Dashboard() {
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box>
                   <Typography color="white" variant="body2" gutterBottom>Avg Efficiency</Typography>
-                  <Typography variant="h4" color="white" fontWeight="bold">{stats.avgEfficiency}%</Typography>
+                  <Typography variant="h4" color="white" fontWeight="bold">{stats.avgEfficiency || 0}%</Typography>
                 </Box>
                 <RecyclingIcon sx={{ fontSize: 48, color: 'rgba(255,255,255,0.3)' }} />
               </Box>
@@ -212,21 +206,49 @@ export default function Dashboard() {
                   <Box mb={2}>
                     <Typography variant="body2" color="textSecondary">Predicted Output</Typography>
                     <Typography variant="h5" color="primary">
-                      {predictions[0].predicted_output?.toFixed(2) || 'N/A'} kg
+                      {predictions[0].predicted_output != null ? Number(predictions[0].predicted_output).toFixed(2) : 'N/A'} kg
                     </Typography>
                   </Box>
                   <Box mb={2}>
                     <Typography variant="body2" color="textSecondary">Quality Score</Typography>
                     <Typography variant="h5" color="success.main">
-                      {predictions[0].output_quality?.toFixed(2) || 'N/A'}
+                      {predictions[0].output_quality != null ? Number(predictions[0].output_quality).toFixed(2) : 'N/A'}
                     </Typography>
                   </Box>
-                  <Box>
+                  <Box mb={2}>
                     <Typography variant="body2" color="textSecondary">Energy Efficiency</Typography>
                     <Typography variant="h5" color="warning.main">
-                      {predictions[0].energy_efficiency?.toFixed(2) || 'N/A'}%
+                      {predictions[0].energy_efficiency != null ? Number(predictions[0].energy_efficiency).toFixed(2) : 'N/A'}%
                     </Typography>
                   </Box>
+                  {/* Waste Management Section */}
+                  {predictions[0].waste_management && (
+                    <Box mb={2}>
+                      <Typography variant="body2" color="textSecondary">Waste Generated</Typography>
+                      <Typography variant="h6" color="error.main">
+                        {predictions[0].waste_management.waste_amount != null ? Number(predictions[0].waste_management.waste_amount).toFixed(2) : 'N/A'} {predictions[0].waste_management.unit || 'kg'}
+                      </Typography>
+                      <Typography variant="caption" color="textSecondary">
+                        Type: {predictions[0].waste_management.waste_type || 'N/A'}
+                      </Typography>
+                    </Box>
+                  )}
+                  {/* Waste Recommendations Section */}
+                  {predictions[0].waste_recommendations && (
+                    <Box>
+                      <Typography variant="body2" color="textSecondary" gutterBottom>
+                        Recommendation
+                      </Typography>
+                      <Typography variant="body2" color="primary">
+                        {predictions[0].waste_recommendations.recommendation_text || 'N/A'}
+                      </Typography>
+                      {predictions[0].waste_recommendations.estimated_savings != null && (
+                        <Typography variant="caption" color="success.main" display="block">
+                          Estimated Savings: ${Number(predictions[0].waste_recommendations.estimated_savings || 0).toFixed(2)}
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
                 </Box>
               ) : (
                 <Box display="flex" justifyContent="center" alignItems="center" height={250}>
@@ -242,9 +264,9 @@ export default function Dashboard() {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Waste Management Overview</Typography>
-              {waste.length > 0 ? (
+              {wasteData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={waste}>
+                  <BarChart data={wasteData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="waste_type" />
                     <YAxis />

@@ -1,27 +1,26 @@
 import React from 'react';
 import { Container, AppBar, Toolbar, Typography, Box, Button, Alert } from '@mui/material';
 import { Link, useLocation } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
+import { AuthContext, useAuth } from '../context/AuthContext';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import LogoutIcon from '@mui/icons-material/Logout';
 
 export default function Layout({ children }) {
-  const { user, logout } = React.useContext(AuthContext);
+  const { user, logout } = useAuth();
   const location = useLocation();
 
-  // Check if user is admin
-  const isAdmin = user && (user.is_staff || user.is_superuser);
-  
-  // Check if currently on admin pages
-  const isAdminPage = location.pathname.startsWith('/admin');
+  // Role helpers
+  const isAdmin = !!(user && (user.is_superuser || user.role === 'admin'));
+  const isStaff = !!(user && !isAdmin && (user.is_staff || user.role === 'staff'));
 
   return (
     <Box>
-      {/* Admin Banner - Show when admin is logged in */}
-      {isAdmin && (
-        <Alert 
+      {/* Role Banner - Show when staff/admin is logged in */}
+      {(isAdmin || isStaff) && (
+        <Alert
           icon={<AdminPanelSettingsIcon />}
-          severity="info" 
-          sx={{ 
+          severity="info"
+          sx={{
             borderRadius: 0,
             justifyContent: 'center',
             '& .MuiAlert-message': {
@@ -29,71 +28,47 @@ export default function Layout({ children }) {
             }
           }}
         >
-          🧠 Logged in as Administrator
+          {isAdmin ? '🧠 Logged in as Administrator' : '🛠 Logged in as Staff'}
         </Alert>
       )}
 
       {/* Navigation Bar */}
-      <AppBar 
+      <AppBar
         position="static"
         sx={{
-          // Darker color for admin navbar when admin is logged in
-          bgcolor: isAdmin ? '#1a237e' : 'primary.main'
+          // Orange navbar for staff/admin, blue for regular users
+          bgcolor: (isAdmin || isStaff) ? '#1976d2' : 'primary.main'
         }}
       >
         <Toolbar>
-          <Typography 
-            variant="h6" 
-            component={Link} 
-            to={isAdmin ? "/admin-dashboard" : "/"} 
-            sx={{ 
-              flexGrow: 1, 
-              textDecoration: 'none', 
+          <Typography
+            variant="h6"
+            component={Link}
+            to={isAdmin ? "/admin-dashboard" : isStaff ? "/staff-dashboard" : "/"}
+            sx={{
+              flexGrow: 1,
+              textDecoration: 'none',
               color: 'inherit',
               cursor: 'pointer',
-              fontWeight: isAdmin ? 'bold' : 'normal'
+              fontWeight: (isAdmin || isStaff) ? 'bold' : 'normal'
             }}
           >
-            {isAdmin ? '⚙️ AluOptimize Admin' : 'AluOptimize'}
+            {isAdmin ? '⚙️ AluOptimize Admin' : isStaff ? '🛠 AluOptimize Staff' : 'AluOptimize'}
           </Typography>
-          
+
           {user ? (
             <>
-              {/* Admin Navigation - Show ONLY when user is admin */}
-              {isAdmin ? (
+              {/* Admin/Staff Navigation - Show ONLY when privileged */}
+              {isAdmin || isStaff ? (
                 <>
-                  <Button 
-                    color="inherit" 
-                    component={Link} 
-                    to="/admin-dashboard"
-                    sx={{ 
-                      fontWeight: location.pathname === '/admin-dashboard' ? 'bold' : 'normal',
-                      textDecoration: location.pathname === '/admin-dashboard' ? 'underline' : 'none'
-                    }}
+                  {/* Clean staff/admin interface - only Logout button */}
+                  <Button
+                    color="inherit"
+                    onClick={() => logout(isAdmin ? 'admin' : 'staff')}
+                    startIcon={<LogoutIcon />}
                   >
-                    Admin Dashboard
+                    Logout
                   </Button>
-                  <Button 
-                    color="inherit" 
-                    component={Link} 
-                    to="/admin-dashboard"
-                    sx={{ 
-                      fontWeight: 'normal'
-                    }}
-                  >
-                    Prediction Control
-                  </Button>
-                  <Button 
-                    color="inherit" 
-                    component={Link} 
-                    to="/admin-dashboard"
-                    sx={{ 
-                      fontWeight: 'normal'
-                    }}
-                  >
-                    User Management
-                  </Button>
-                  <Button color="inherit" onClick={logout}>Logout</Button>
                 </>
               ) : (
                 <>
@@ -102,10 +77,9 @@ export default function Layout({ children }) {
                   <Button color="inherit" component={Link} to="/inputs">Inputs</Button>
                   <Button color="inherit" component={Link} to="/predictions">Predictions</Button>
                   <Button color="inherit" component={Link} to="/waste">Waste</Button>
-                  <Button color="inherit" component={Link} to="/recommendations">Recommendations</Button>
-                  
+
                   {/* No "Switch to Admin View" button for regular users */}
-                  
+
                   <Button color="inherit" onClick={logout}>Logout</Button>
                 </>
               )}

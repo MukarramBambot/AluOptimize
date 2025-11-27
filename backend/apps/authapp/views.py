@@ -1,85 +1,47 @@
 from rest_framework import viewsets, permissions, status, serializers
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes, authentication_classes
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import get_user_model
 import logging
 
-from .serializers import UserSerializer
+from .serializers import UserSerializer, CustomTokenObtainPairSerializer
+from .permissions import IsAdmin, IsStaff
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """
-    Custom serializer to check if user is active before issuing tokens.
-    Also prevents admin accounts from logging in through user login page.
-    """
-    def validate(self, attrs):
-        # First, authenticate the user
-        data = super().validate(attrs)
-        
-        # Prevent admin accounts from logging in through user login
-        if self.user.is_staff or self.user.is_superuser:
-            logger.warning(f"Admin login attempt through user endpoint: {self.user.username}")
-            raise serializers.ValidationError(
-                {'detail': 'Admin accounts must use the admin login page.'},
-                code='admin_login_required'
-            )
-        
-        # Check if user is active
-        if not self.user.is_active:
-            logger.warning(f"Inactive user login attempt: {self.user.username}")
-            raise serializers.ValidationError(
-                {'detail': 'Account not approved by admin yet. Please wait for admin approval.'},
-                code='account_inactive'
-            )
-        
-        return data
-
-
 class CustomTokenObtainPairView(TokenObtainPairView):
     """
-    Custom token view that uses our custom serializer for user login.
+    Custom token view that handles all role authentication.
     """
     serializer_class = CustomTokenObtainPairSerializer
+    permission_classes = [permissions.AllowAny]
 
-
-class AdminTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """
-    Custom serializer for admin login.
-    Only allows staff and superuser accounts.
-    """
-    def validate(self, attrs):
-        # First, authenticate the user
-        data = super().validate(attrs)
-        
-        # Only allow admin accounts (staff or superuser)
-        if not (self.user.is_staff or self.user.is_superuser):
-            logger.warning(f"Non-admin login attempt through admin endpoint: {self.user.username}")
-            raise serializers.ValidationError(
-                {'detail': 'Only admin accounts can use this login page. Please use the regular login page.'},
-                code='non_admin_login'
+    def post(self, request, *args, **kwargs):
+        try:
+            response = super().post(request, *args, **kwargs)
+            if response.status_code == 200:
+                # Add user info to response
+                serializer = self.get_serializer(data=request.data)
+                if serializer.is_valid():
+                    user = serializer.user
+                    response.data['user'] = {
+                        'id': user.id,
+                        'username': user.username,
+                        'email': user.email or '',
+                        'is_superuser': user.is_superuser,
+                        'is_staff': user.is_staff,
+                        'role': 'admin' if user.is_superuser else 'staff' if user.is_staff else 'user'
+                    }
+            return response
+        except Exception as e:
+            logger.error(f"Login error: {str(e)}")
+            return Response(
+                {'detail': 'Invalid username or password'},
+                status=status.HTTP_401_UNAUTHORIZED
             )
-        
-        # Check if user is active
-        if not self.user.is_active:
-            logger.warning(f"Inactive admin login attempt: {self.user.username}")
-            raise serializers.ValidationError(
-                {'detail': 'Account is inactive. Please contact system administrator.'},
-                code='account_inactive'
-            )
-        
-        return data
-
-
-class AdminTokenObtainPairView(TokenObtainPairView):
-    """
-    Custom token view for admin login.
-    """
-    serializer_class = AdminTokenObtainPairSerializer
 
 class UserViewSet(viewsets.ModelViewSet):
     """
@@ -87,16 +49,16 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated]
 
     def get_permissions(self):
-        """
-        Override to allow user registration without authentication.
+        """Custom permissions based on action.
+        - create: anyone can create users (public registration).
+        - other actions: staff (including admin) can access.
         """
         if self.action == 'create':
             permission_classes = [permissions.AllowAny]
         else:
-            permission_classes = [permissions.IsAuthenticated]
+            permission_classes = [IsStaff]
         return [permission() for permission in permission_classes]
 
     @action(detail=True, methods=['post'])
@@ -112,3 +74,24 @@ class UserViewSet(viewsets.ModelViewSet):
         user.set_password(password)
         user.save()
         return Response({'status': 'password set'})
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def register_user(request):
+    """
+    Register a new user.
+    """
+    serializer = UserSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        return Response({
+            'message': 'User created successfully',
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'is_staff': user.is_staff,
+                'is_superuser': user.is_superuser
+            }
+        }, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

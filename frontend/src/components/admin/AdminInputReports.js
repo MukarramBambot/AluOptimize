@@ -31,12 +31,12 @@ export default function AdminInputReports() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  
+
   // User selection
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  
+
   // Input selection
   const [userInputs, setUserInputs] = useState([]);
   const [selectedInput, setSelectedInput] = useState(null);
@@ -48,18 +48,19 @@ export default function AdminInputReports() {
       try {
         setLoadingUsers(true);
         const response = await api.get('/admin-panel/input-reports/users/');
-        
+
         if (response.data.success) {
           setUsers(response.data.users);
         }
       } catch (err) {
         console.error('Error fetching users:', err);
-        setError('Failed to load users');
+        // Don't set error for empty data, just set empty array
+        setUsers([]);
       } finally {
         setLoadingUsers(false);
       }
     };
-    
+
     fetchUsers();
   }, []);
 
@@ -71,20 +72,21 @@ export default function AdminInputReports() {
           setLoadingInputs(true);
           setSelectedInput(null);
           setUserInputs([]);
-          
+
           const response = await api.get(`/admin-panel/input-reports/${selectedUser.id}/inputs/`);
-          
+
           if (response.data.success) {
             setUserInputs(response.data.inputs);
           }
         } catch (err) {
           console.error('Error fetching user inputs:', err);
-          setError('Failed to load user inputs');
+          // Don't set error for empty data, just set empty array
+          setUserInputs([]);
         } finally {
           setLoadingInputs(false);
         }
       };
-      
+
       fetchUserInputs();
     } else {
       setUserInputs([]);
@@ -114,7 +116,7 @@ export default function AdminInputReports() {
         const response = await api.post('/admin-panel/input-reports/generate/', requestData, {
           responseType: 'blob'
         });
-        
+
         const blob = new Blob([response.data], { type: 'application/pdf' });
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -122,12 +124,12 @@ export default function AdminInputReports() {
         link.download = `aluoptimize_report_input_${selectedInput.id}.pdf`;
         link.click();
         window.URL.revokeObjectURL(url);
-        
+
         setSuccess(`✅ Report PDF downloaded successfully for Input #${selectedInput.id}!`);
       } else {
         // Just generate (and optionally email)
         const response = await api.post('/admin-panel/input-reports/generate/', requestData);
-        
+
         if (response.data.success) {
           setSuccess(response.data.message);
         } else {
@@ -135,7 +137,7 @@ export default function AdminInputReports() {
         }
       }
 
-      setTimeout(() => setSuccess(''), 5000);
+      // setTimeout(() => setSuccess(''), 5000);
 
     } catch (err) {
       console.error('Error generating report:', err);
@@ -175,7 +177,7 @@ export default function AdminInputReports() {
               <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <PersonIcon /> Step 1: Select User
               </Typography>
-              
+
               <Autocomplete
                 options={users}
                 getOptionLabel={(option) => `${option.username} (${option.email})`}
@@ -259,7 +261,7 @@ export default function AdminInputReports() {
                       </TableHead>
                       <TableBody>
                         {userInputs.map((input) => (
-                          <TableRow 
+                          <TableRow
                             key={input.id}
                             selected={selectedInput?.id === input.id}
                             hover
@@ -296,11 +298,11 @@ export default function AdminInputReports() {
                   {selectedInput && (
                     <Box mt={3}>
                       <Divider sx={{ mb: 2 }} />
-                      
+
                       <Typography variant="subtitle1" gutterBottom>
                         <strong>Selected Input Details:</strong>
                       </Typography>
-                      
+
                       <Grid container spacing={2} sx={{ mb: 2 }}>
                         <Grid item xs={6}>
                           <Typography variant="body2" color="textSecondary">

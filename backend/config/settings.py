@@ -185,9 +185,7 @@ REST_FRAMEWORK = {
 	'DEFAULT_PERMISSION_CLASSES': (
 		'rest_framework.permissions.IsAuthenticated',
 	),
-	'DEFAULT_PAGINATION_CLASS': 'backend.apps.core.pagination.StandardResultsSetPagination',
 	'PAGE_SIZE': 10,
-	'EXCEPTION_HANDLER': 'backend.apps.core.exceptions.custom_exception_handler',
 	'DEFAULT_RENDERER_CLASSES': (
 		'rest_framework.renderers.JSONRenderer',
 		'rest_framework.renderers.BrowsableAPIRenderer',
@@ -216,6 +214,10 @@ SIMPLE_JWT = {
 # CORS settings
 CORS_ORIGIN_WHITELIST = getattr(project_manage, 'CORS_ORIGIN_WHITELIST', [])
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins for development to fix login issues
+
+# CSRF settings
+CSRF_TRUSTED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:8000', 'http://127.0.0.1:8000']
 
 # Debug Toolbar settings
 INTERNAL_IPS = [

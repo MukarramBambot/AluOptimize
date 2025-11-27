@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, TextField, Typography, CircularProgress, Alert } from '@mui/material';
 import Button from '../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
@@ -15,6 +15,7 @@ const schema = yup.object({
 
 export default function Register() {
   const navigate = useNavigate();
+  const { register: registerUser } = useAuth();
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   const [success, setSuccess] = React.useState(false);
@@ -26,24 +27,16 @@ export default function Register() {
     setError('');
     setSuccess(false);
     try {
-      await api.post('/auth/users/', values);
-      setSuccess(true);
-      setTimeout(() => navigate('/login'), 4000);
+      const result = await registerUser(values);
+      if (result.success) {
+        setSuccess(true);
+        setTimeout(() => navigate('/login'), 4000);
+      } else {
+        setError(result.error || 'Registration failed');
+      }
     } catch (err) {
       console.error(err);
-      const detail = err.response?.data?.detail;
-      const username = err.response?.data?.username;
-      const email = err.response?.data?.email;
-      
-      if (username) {
-        setError(`Username error: ${username[0]}`);
-      } else if (email) {
-        setError(`Email error: ${email[0]}`);
-      } else if (detail) {
-        setError(detail);
-      } else {
-        setError('Registration failed. Please try again.');
-      }
+      setError(err.detail || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }

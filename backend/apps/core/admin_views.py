@@ -1,317 +1,247 @@
 """
-Admin-specific API views for user management, data approval, and reporting.
+Admin Panel API Views
+
+Provides endpoints for admin dashboard functionality including:
+- Dashboard statistics
+- User management
+- Prediction management
+- System overview
 """
-from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action
+from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework import status
 from django.contrib.auth import get_user_model
-from django.db.models import Count, Q
+from django.db.models import Avg, Sum, Count
 from django.utils import timezone
 from datetime import timedelta
-import logging
 
+from backend.apps.authapp.permissions import IsStaff
 from backend.apps.authapp.serializers import UserSerializer
-from backend.apps.prediction.models import ProductionInput, ProductionOutput
-from backend.apps.prediction.serializers import ProductionInputSerializer, ProductionOutputSerializer
-from django.utils import timezone
-import uuid
+from backend.apps.prediction.models import ProductionOutput, ProductionInput
+from backend.apps.waste.models import WasteManagement
 
 User = get_user_model()
-logger = logging.getLogger(__name__)
 
 
-class IsAdminUser(permissions.BasePermission):
+class AdminDashboardView(APIView):
     """
-    Custom permission to only allow admin/staff users.
+    Admin dashboard statistics endpoint.
+    Returns overview stats for users, predictions, and waste.
     """
-    def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)
-
-
-class AdminDashboardViewSet(viewsets.ViewSet):
-    """
-    Admin dashboard statistics and overview.
-    """
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsStaff]
     
-    def list(self, request):
-        """Get dashboard statistics"""
+    def get(self, request):
         try:
-            from django.db.models import Sum, Avg
-            from backend.apps.waste.models import WasteManagement
-            from decimal import Decimal
+            # Gather user statistics
+            users = User.objects.all()
+            users_stats = {
+                'total': users.count(),
+                'pending': users.filter(is_active=False).count(),
+                'active': users.filter(is_active=True).count(),
+            }
             
-            # User statistics
-            total_users = User.objects.count()
-            pending_users = User.objects.filter(is_active=False).count()
-            active_users = User.objects.filter(is_active=True).count()
+            # Gather prediction statistics
+            predictions = ProductionOutput.objects.all()
+            one_week_ago = timezone.now() - timedelta(days=7)
+            avg_efficiency = predictions.aggregate(Avg('energy_efficiency'))['energy_efficiency__avg']
             
-            # Prediction statistics
-            total_predictions = ProductionOutput.objects.count()
-            total_inputs = ProductionInput.objects.count()
-            approved_predictions = ProductionOutput.objects.filter(is_approved=True).count()
+            predictions_stats = {
+                'total': predictions.count(),
+                'this_week': predictions.filter(created_at__gte=one_week_ago).count(),
+                'avg_efficiency': round(avg_efficiency, 2) if avg_efficiency else 0,
+            }
             
-            today = timezone.now().date()
-            week_ago = today - timedelta(days=7)
-            predictions_this_week = ProductionOutput.objects.filter(
-                created_at__date__gte=week_ago
-            ).count()
+            # Gather waste statistics
+            waste = WasteManagement.objects.all()
+            total_waste = waste.aggregate(Sum('waste_amount'))['waste_amount__sum']
             
-            # Average efficiency (with safe default)
-            avg_efficiency = ProductionOutput.objects.aggregate(
-                avg=Avg('energy_efficiency')
-            ).get('avg') or 0
-            avg_efficiency = float(avg_efficiency) if avg_efficiency else 0.0
+            waste_stats = {
+                'total_records': waste.count(),
+                'total_amount': float(total_waste) if total_waste else 0,
+                'reusable': waste.filter(reuse_possible=True).count(),
+            }
             
-            # Waste statistics
-            total_waste_records = WasteManagement.objects.count()
-            total_waste_amount = WasteManagement.objects.aggregate(
-                total=Sum('waste_amount')
-            ).get('total') or 0
-            total_waste_amount = float(total_waste_amount) if total_waste_amount else 0.0
+            # Recent activity
+            recent_users = users.order_by('-date_joined')[:5]
+            recent_predictions = predictions.select_related('input_data').order_by('-created_at')[:5]
             
-            reusable_waste = WasteManagement.objects.filter(reuse_possible=True).count()
+            recent_activity = {
+                'users': UserSerializer(recent_users, many=True).data,
+                'predictions': [
+                    {
+                        'id': pred.id,
+                        'input_data': {
+                            'production_line': pred.input_data.production_line if pred.input_data else None,
+                        },
+                        'predicted_output': pred.predicted_output,
+                        'energy_efficiency': pred.energy_efficiency,
+                        'created_at': pred.created_at,
+                    }
+                    for pred in recent_predictions
+                ],
+            }
             
-            # Recent activity - convert datetime to ISO string
-            recent_users_qs = User.objects.order_by('-date_joined')[:5]
-            recent_users = []
-            for user in recent_users_qs:
-                recent_users.append({
+            stats = {
+                'users': users_stats,
+                'predictions': predictions_stats,
+                'waste': waste_stats,
+                'recent_activity': recent_activity,
+            }
+            
+            return Response(stats)
+        except Exception as e:
+            # Return empty stats if there's an error
+            return Response({
+                'users': {'total': 0, 'pending': 0, 'active': 0},
+                'predictions': {'total': 0, 'this_week': 0, 'avg_efficiency': 0},
+                'waste': {'total_records': 0, 'total_amount': 0, 'reusable': 0},
+                'recent_activity': {'users': [], 'predictions': []}
+            }, status=status.HTTP_200_OK)
+
+
+class AdminUsersView(APIView):
+    """
+    Admin user management endpoint.
+    GET: List all users with optional filtering
+    """
+    permission_classes = [IsStaff]
+    
+    def get(self, request):
+        try:
+            users = User.objects.all().order_by('-date_joined')
+            
+            # Filter by status if provided
+            status_filter = request.query_params.get('status', None)
+            if status_filter == 'pending':
+                users = users.filter(is_active=False)
+            elif status_filter == 'active':
+                users = users.filter(is_active=True)
+            
+            serializer = UserSerializer(users, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            # Return empty list if there's an error
+            return Response([], status=status.HTTP_200_OK)
+
+
+class AdminUserApproveView(APIView):
+    """
+    Approve a pending user account.
+    """
+    permission_classes = [IsStaff]
+    
+    def post(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+            user.is_active = True
+            user.save()
+            return Response({'message': 'User approved successfully'}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class AdminUserCreateView(APIView):
+    """
+    Create a new user with specific role.
+    Only admins can access this.
+    """
+    permission_classes = [IsStaff]
+
+    def post(self, request):
+        username = request.data.get('username')
+        email = request.data.get('email')
+        password = request.data.get('password')
+        role = request.data.get('role', 'user')
+
+        if not all([username, email, password]):
+            return Response({'error': 'Username, email, and password are required'}, status=400)
+
+        if User.objects.filter(username=username).exists():
+            return Response({'error': 'Username already exists'}, status=400)
+
+        try:
+            # Create user
+            user = User.objects.create_user(username=username, email=email, password=password)
+            
+            # Set flags based on role
+            if role == 'admin':
+                user.is_staff = True
+                user.is_superuser = True
+            elif role == 'staff':
+                user.is_staff = True
+                user.is_superuser = False
+            else:
+                user.is_staff = False
+                user.is_superuser = False
+            
+            # Auto-activate users created by admin
+            user.is_active = True
+            user.save()
+
+            # Update profile role
+            # Profile is created by signal, so we just update it
+            if hasattr(user, 'profile'):
+                user.profile.role = role
+                user.profile.save()
+            else:
+                # Fallback if signal didn't fire (shouldn't happen but good for safety)
+                from backend.apps.authapp.models import UserProfile
+                UserProfile.objects.create(user=user, role=role)
+
+            return Response({
+                'message': f'User {username} created successfully as {role}',
+                'user': {
                     'id': user.id,
                     'username': user.username,
                     'email': user.email,
-                    'is_active': user.is_active,
-                    'date_joined': user.date_joined.isoformat() if user.date_joined else None
-                })
-            
-            # Recent predictions
-            recent_predictions = ProductionOutput.objects.select_related('input_data').order_by('-created_at')[:5]
-            recent_predictions_data = []
-            for pred in recent_predictions:
-                recent_predictions_data.append({
-                    'id': pred.id,
-                    'predicted_output': float(pred.predicted_output) if pred.predicted_output else 0.0,
-                    'energy_efficiency': float(pred.energy_efficiency) if pred.energy_efficiency else 0.0,
-                    'status': pred.status,
-                    'created_at': pred.created_at.isoformat() if pred.created_at else None,
-                })
-            
-            stats = {
-                'users': {
-                    'total': int(total_users),
-                    'pending': int(pending_users),
-                    'active': int(active_users),
-                },
-                'predictions': {
-                    'total': int(total_predictions),
-                    'total_inputs': int(total_inputs),
-                    'approved': int(approved_predictions),
-                    'this_week': int(predictions_this_week),
-                    'avg_efficiency': round(avg_efficiency, 2),
-                },
-                'waste': {
-                    'total_records': int(total_waste_records),
-                    'total_amount': round(total_waste_amount, 2),
-                    'reusable': int(reusable_waste),
-                },
-                'recent_activity': {
-                    'users': recent_users,
-                    'predictions': recent_predictions_data,
+                    'role': role,
+                    'is_active': user.is_active
                 }
-            }
-            
-            logger.info(f"Admin dashboard accessed by {request.user.username}")
-            return Response(stats)
-            
+            }, status=201)
+
         except Exception as e:
-            logger.error(f"Error fetching admin dashboard stats: {str(e)}", exc_info=True)
-            return Response(
-                {'error': 'Failed to fetch dashboard statistics', 'details': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'error': str(e)}, status=500)
 
 
-class AdminUserManagementViewSet(viewsets.ModelViewSet):
+class AdminUserRejectView(APIView):
     """
-    Admin user management - approve, reject, manage users.
+    Deactivate a user account.
     """
-    queryset = User.objects.all().order_by('-date_joined')
-    serializer_class = UserSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsStaff]
     
-    def list(self, request):
-        """List all users with filtering options"""
-        filter_status = request.query_params.get('status', None)
-        
-        queryset = self.queryset
-        if filter_status == 'pending':
-            queryset = queryset.filter(is_active=False)
-        elif filter_status == 'active':
-            queryset = queryset.filter(is_active=True)
-        
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-    
-    @action(detail=True, methods=['post'])
-    def approve(self, request, pk=None):
-        """Approve a user account"""
+    def post(self, request, user_id):
         try:
-            user = self.get_object()
-            
-            if user.is_active:
-                return Response(
-                    {'message': 'User is already active'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            user.is_active = True
-            user.save()
-            
-            logger.info(f"User {user.username} approved by admin {request.user.username}")
-            
-            # TODO: Send email notification to user
-            # send_approval_email(user)
-            
-            return Response({
-                'message': f'User {user.username} has been approved',
-                'user': self.get_serializer(user).data
-            })
-            
-        except Exception as e:
-            logger.error(f"Error approving user: {str(e)}", exc_info=True)
-            return Response(
-                {'error': 'Failed to approve user'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
-    @action(detail=True, methods=['post'])
-    def reject(self, request, pk=None):
-        """Reject/deactivate a user account"""
-        try:
-            user = self.get_object()
-            
+            user = User.objects.get(id=user_id)
             user.is_active = False
             user.save()
-            
-            logger.info(f"User {user.username} rejected by admin {request.user.username}")
-            
-            return Response({
-                'message': f'User {user.username} has been deactivated'
-            })
-            
-        except Exception as e:
-            logger.error(f"Error rejecting user: {str(e)}", exc_info=True)
-            return Response(
-                {'error': 'Failed to reject user'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
-    @action(detail=False, methods=['post'])
-    def bulk_approve(self, request):
-        """Approve multiple users at once"""
-        try:
-            user_ids = request.data.get('user_ids', [])
-            
-            if not user_ids:
-                return Response(
-                    {'error': 'No user IDs provided'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            updated = User.objects.filter(id__in=user_ids, is_active=False).update(is_active=True)
-            
-            logger.info(f"{updated} users approved by admin {request.user.username}")
-            
-            return Response({
-                'message': f'{updated} user(s) approved successfully',
-                'count': updated
-            })
-            
-        except Exception as e:
-            logger.error(f"Error in bulk approval: {str(e)}", exc_info=True)
-            return Response(
-                {'error': 'Failed to approve users'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'message': 'User deactivated successfully'}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
-class AdminPredictionManagementViewSet(viewsets.ModelViewSet):
+class AdminUserBulkApproveView(APIView):
     """
-    Admin prediction management - view, approve, charge users.
+    Bulk approve multiple users.
     """
-    queryset = ProductionOutput.objects.select_related('input_data', 'input_data__submitted_by').all()
-    serializer_class = ProductionOutputSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsStaff]
     
-    def list(self, request):
-        """List all predictions with filtering"""
-        queryset = self.queryset.order_by('-created_at')
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-    
-    @action(detail=True, methods=['post'])
-    def mark_paid(self, request, pk=None):
-        """Mark a prediction as paid"""
-        try:
-            prediction = self.get_object()
-            
-            # Add paid status to input_data metadata
-            input_data = prediction.input_data
-            # You can add a payment_status field to the model or use a separate Payment model
-            
-            logger.info(f"Prediction {prediction.id} marked as paid by admin {request.user.username}")
-            
-            return Response({
-                'message': f'Prediction {prediction.id} marked as paid',
-                'prediction': self.get_serializer(prediction).data
-            })
-            
-        except Exception as e:
-            logger.error(f"Error marking prediction as paid: {str(e)}", exc_info=True)
-            return Response(
-                {'error': 'Failed to mark as paid'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
-    @action(detail=True, methods=['get'])
-    def generate_report(self, request, pk=None):
-        """Generate PDF report for a prediction"""
-        try:
-            prediction = self.get_object()
-            
-            # Return report data (PDF generation will be done in frontend or separate service)
-            report_data = {
-                'prediction_id': prediction.id,
-                'user': {
-                    'username': prediction.input_data.submitted_by.username if prediction.input_data.submitted_by else 'N/A',
-                    'email': prediction.input_data.submitted_by.email if prediction.input_data.submitted_by else 'N/A',
-                },
-                'input_parameters': {
-                    'production_line': prediction.input_data.production_line,
-                    'temperature': prediction.input_data.temperature,
-                    'pressure': prediction.input_data.pressure,
-                    'feed_rate': prediction.input_data.feed_rate,
-                    'power_consumption': prediction.input_data.power_consumption,
-                    'anode_effect': prediction.input_data.anode_effect,
-                    'bath_ratio': prediction.input_data.bath_ratio,
-                    'alumina_concentration': prediction.input_data.alumina_concentration,
-                },
-                'predictions': {
-                    'predicted_output': prediction.predicted_output,
-                    'energy_efficiency': prediction.energy_efficiency,
-                    'output_quality': prediction.output_quality,
-                },
-                'timestamp': prediction.created_at,
-                'admin_signature': f'Approved by: {request.user.username}',
-            }
-            
-            logger.info(f"Report generated for prediction {prediction.id} by admin {request.user.username}")
-            
-            return Response(report_data)
-            
-        except Exception as e:
-            logger.error(f"Error generating report: {str(e)}", exc_info=True)
-            return Response(
-                {'error': 'Failed to generate report'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+    def post(self, request):
+        user_ids = request.data.get('user_ids', [])
+        
+        if not user_ids:
+            return Response({'error': 'No user IDs provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        updated_count = User.objects.filter(id__in=user_ids).update(is_active=True)
+        
+        return Response({
+            'message': f'{updated_count} user(s) approved successfully',
+            'count': updated_count
+        }, status=status.HTTP_200_OK)
+
+from .staff_views import StaffInputReportsView
+
+class AdminInputReportsView(StaffInputReportsView):
+    """
+    Admin view for input reports.
+    Inherits functionality from StaffInputReportsView.
+    """
+    pass

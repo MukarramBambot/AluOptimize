@@ -8,12 +8,12 @@ const theme = createTheme({
       light: '#63a4ff'
     },
     secondary: {
-      main: '#ff9800',      // Warning/alert orange
-      dark: '#c66900',
-      light: '#ffc947'
+      main: '#1976d2',      // Professional blue
+      dark: '#004ba0',
+      light: '#63a4ff'
     },
     error: {
-      main: '#f44336'       // Error red
+      main: '#FF0000'       // Error red
     },
     background: {
       default: '#f5f5f5',   // Light gray background

@@ -1,5 +1,6 @@
 import React from 'react';
 import Layout from '../components/Layout';
+import predictionService from '../services/predictionService';
 import { 
   Typography, 
   CircularProgress, 
@@ -13,7 +14,6 @@ import {
   TableRow,
   Alert
 } from '@mui/material';
-import api from '../services/api';
 import { 
   LineChart, 
   Line, 
@@ -38,19 +38,16 @@ export default function Predictions() {
     try {
       setLoading(true);
       setError('');
-      const resp = await api.get('/prediction/outputs/');
-      const data = resp.data.results || resp.data;
-      
-      // Sort by created_at descending (newest first)
-      const sortedData = Array.isArray(data) 
-        ? data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        : [];
-      
+      const resp = await predictionService.getUserPredictions();
+      const data = resp.results || resp || [];
+      // Only show predictions that are sent to user (should already be filtered by backend)
+      const filtered = data.filter(p => p && (p.sent_to_user === undefined || p.sent_to_user));
+      const sortedData = filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
       setItems(sortedData);
-      console.log('Fetched predictions:', sortedData);
+      console.log('Fetched user predictions:', sortedData);
     } catch (err) {
       console.error('Error fetching predictions:', err);
-      setError('Failed to load predictions. Please try again.');
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -76,9 +73,9 @@ export default function Predictions() {
 
   const chartData = items.map(item => ({
     name: item.input_data?.production_line || 'N/A',
-    efficiency: parseFloat(item.energy_efficiency?.toFixed(2) || 0),
-    output: parseFloat(item.predicted_output?.toFixed(2) || 0),
-    quality: parseFloat(item.output_quality?.toFixed(2) || 0),
+    efficiency: item.energy_efficiency != null ? Number(item.energy_efficiency) : 0,
+    output: item.predicted_output != null ? Number(item.predicted_output) : 0,
+    quality: item.output_quality != null ? Number(item.output_quality) : 0,
     timestamp: formatDate(item.created_at)
   }));
 
@@ -98,7 +95,7 @@ export default function Predictions() {
         </Box>
       ) : items.length === 0 ? (
         <Alert severity="info">
-          No predictions available yet. Submit production input data to generate predictions.
+          No predictions available yet. Your submitted inputs are being reviewed by staff. You will see predictions here once they are approved and sent to you.
         </Alert>
       ) : (
         <>
@@ -150,6 +147,8 @@ export default function Predictions() {
                   <TableCell align="right"><strong>Predicted Output (kg)</strong></TableCell>
                   <TableCell align="right"><strong>Energy Efficiency (%)</strong></TableCell>
                   <TableCell align="right"><strong>Quality Score</strong></TableCell>
+                  <TableCell align="right"><strong>Waste (kg)</strong></TableCell>
+                  <TableCell><strong>Recommendation</strong></TableCell>
                   <TableCell><strong>Timestamp</strong></TableCell>
                 </TableRow>
               </TableHead>
@@ -157,21 +156,56 @@ export default function Predictions() {
                 {items.map((item) => (
                   <TableRow key={item.id} hover>
                     <TableCell>{item.input_data?.production_line || 'N/A'}</TableCell>
-                    <TableCell align="right">{item.input_data?.feed_rate?.toFixed(2) || 'N/A'}</TableCell>
-                    <TableCell align="right">{item.input_data?.power_consumption?.toFixed(2) || 'N/A'}</TableCell>
-                    <TableCell align="right">{item.predicted_output?.toFixed(2) || 'N/A'}</TableCell>
+                    <TableCell align="right">
+                      {item.input_data?.feed_rate != null ? Number(item.input_data.feed_rate).toFixed(2) : 'N/A'}
+                    </TableCell>
+                    <TableCell align="right">
+                      {item.input_data?.power_consumption != null ? Number(item.input_data.power_consumption).toFixed(2) : 'N/A'}
+                    </TableCell>
+                    <TableCell align="right">
+                      {item.predicted_output != null ? Number(item.predicted_output).toFixed(2) : 'N/A'}
+                    </TableCell>
                     <TableCell align="right">
                       <Box 
                         component="span" 
                         sx={{ 
-                          color: item.energy_efficiency > 15 ? 'success.main' : 'warning.main',
+                          color: (item.energy_efficiency != null && Number(item.energy_efficiency) > 15) ? 'success.main' : 'warning.main',
                           fontWeight: 'bold'
                         }}
                       >
-                        {item.energy_efficiency?.toFixed(2) || 'N/A'}%
+                        {item.energy_efficiency != null ? Number(item.energy_efficiency).toFixed(2) : 'N/A'}%
                       </Box>
                     </TableCell>
-                    <TableCell align="right">{item.output_quality?.toFixed(2) || 'N/A'}</TableCell>
+                    <TableCell align="right">
+                      {item.output_quality != null ? Number(item.output_quality).toFixed(2) : 'N/A'}
+                    </TableCell>
+                    <TableCell align="right">
+                      <Box 
+                        component="span" 
+                        sx={{ 
+                          color: (item.waste_management?.waste_amount != null && Number(item.waste_management.waste_amount) > 300) ? 'error.main' : 'warning.main',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        {item.waste_management?.waste_amount != null ? Number(item.waste_management.waste_amount).toFixed(2) : 'N/A'}
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      {item.waste_recommendations ? (
+                        <Box>
+                          <Typography variant="caption" color="primary" display="block">
+                            {item.waste_recommendations.recommendation_text?.substring(0, 50) || 'N/A'}...
+                          </Typography>
+                          {item.waste_recommendations.estimated_savings && (
+                            <Typography variant="caption" color="success.main" display="block">
+                              Save: ${Number(item.waste_recommendations.estimated_savings || 0).toFixed(0)}
+                            </Typography>
+                          )}
+                        </Box>
+                      ) : (
+                        <Typography variant="caption" color="textSecondary">N/A</Typography>
+                      )}
+                    </TableCell>
                     <TableCell>{formatDate(item.created_at)}</TableCell>
                   </TableRow>
                 ))}

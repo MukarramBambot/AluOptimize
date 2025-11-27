@@ -1,4 +1,4 @@
-import React from 'react';
+// import React from 'react';
 import Layout from '../components/Layout';
 import { 
   Typography, 
@@ -13,7 +13,7 @@ import {
   Chip
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
+import { AuthContext, useAuth } from '../context/AuthContext';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -24,7 +24,7 @@ import RecyclingIcon from '@mui/icons-material/Recycling';
 
 export default function Home() {
   const navigate = useNavigate();
-  const { user } = React.useContext(AuthContext);
+  const { user } = useAuth();
 
   const features = [
     {
